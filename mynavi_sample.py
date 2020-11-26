@@ -1,19 +1,25 @@
 import os
+import pandas as pd
+import numpy as np
 from selenium.webdriver import Chrome, ChromeOptions
 import time
+import logging
+
+# debug.logフォルダを出力
+logging.basicConfig(filename='debug.log', level=logging.DEBUG)
 
 ### Chromeを起動する関数
 def set_driver(driver_path,headless_flg):
     # Chromeドライバーの読み込み
     options = ChromeOptions()
 
-    # ヘッドレスモード（画面非表示モード）をの設定
+    # ヘッドレスモード（画面非表示モード）の設定
     if headless_flg==True:
         options.add_argument('--headless')
 
     # 起動オプションの設定
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36')
-    #options.add_argument('log-level=3')
+    options.add_argument('log-level=3')
     options.add_argument('--ignore-certificate-errors')
     options.add_argument('--ignore-ssl-errors')
     options.add_argument('--incognito')          # シークレットモードの設定を付与
@@ -31,7 +37,7 @@ def main():
     time.sleep(5)
     # ポップアップを閉じる
     driver.execute_script('document.querySelector(".karte-close").click()')
-    time.sleep(2)
+    time.sleep(5)
     # ポップアップを閉じる
     driver.execute_script('document.querySelector(".karte-close").click()')
     
@@ -40,25 +46,36 @@ def main():
     # 検索ボタンクリック
     driver.find_element_by_class_name("topSearch__button").click()
 
-    # 検索＆出力処理
-    get_site_info(driver)
+    # dataframe作成
+    list_info = []
 
-    # 次ページへのリンククリック
-    driver.find_element_by_class_name("iconFont--arrowLeft").click()
+    # 画面に次ページボタンがあればクリックして処理を継続
+    roop_flg = True
+    while(roop_flg == True):
+        try:
+            get_site_info(driver, list_info)
+            # 次ページへのリンクがある位置までスクロール
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            next_link = driver.find_elements_by_class_name("iconFont--arrowLeft")
+            if len(next_link) == 0:
+                roop_flg = False
+            else:
+                next_link[0].click()
+                driver.implicitly_wait(10)
+        except IndexError:
+            logging.debug('ページのデータがありません')
+            continue
+        
+    print("処理が終了しました。")
 
-    # 検索＆出力処理
-    get_site_info(driver)
 
 
-def get_site_info(driver):
-    # 検索結果の一番上の会社名を取得
+def get_site_info(driver, list_info):
+    # 検索結果を取得
     name_list=driver.find_elements_by_class_name("cassetteRecruit__name")
     copy_list=driver.find_elements_by_class_name("cassetteRecruit__copy")
     status_list=driver.find_elements_by_class_name("labelEmploymentStatus")
-    # 複数データ取得項目
-    main_list=driver.find_elements_by_class_name("cassetteRecruit__main")
-
-    # 日付
+    main_list=driver.find_elements_by_class_name("tableCondition")
     update_date_list=driver.find_elements_by_class_name("cassetteRecruit__updateDate")
     end_date_list=driver.find_elements_by_class_name("cassetteRecruit__endDate")
 
@@ -74,6 +91,11 @@ def get_site_info(driver):
             
         print(updatedate.text)
         print(enddate.text)
+
+        list_info += [[name.text, copy.text, status.text, main_td_list[0].text, main_td_list[1].text, main_td_list[2].text, main_td_list[3].text]]
+        df = pd.DataFrame(data=list_info,columns=["会社情報", "採用情報概要", "雇用形態", "仕事内容", "対象となる方", "勤務地", "給与"])
+        df.to_csv('sample.csv', encoding='utf_8_sig')
+        logging.debug(f'現在 {len(df)}件目')
 
 ### 直接起動された場合はmain()を起動(モジュールとして呼び出された場合は起動しないようにするため)
 if __name__ == "__main__":
