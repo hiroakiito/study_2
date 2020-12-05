@@ -27,50 +27,6 @@ def set_driver(driver_path,headless_flg):
     # ChromeのWebDriverオブジェクトを作成する。
     return Chrome(executable_path=os.getcwd() + "/" + driver_path,options=options)
 
-### main処理
-def main():
-    search_keyword=input("求人情報検索ワードを入力してください >>> ")
-    # driverを起動
-    driver=set_driver("chromedriver.exe",False)
-    # Webサイトを開く
-    driver.get("https://tenshoku.mynavi.jp/")
-    time.sleep(5)
-    # ポップアップを閉じる
-    driver.execute_script('document.querySelector(".karte-close").click()')
-    time.sleep(5)
-    # ポップアップを閉じる
-    driver.execute_script('document.querySelector(".karte-close").click()')
-    
-    # 検索窓に入力
-    driver.find_element_by_class_name("topSearch__text").send_keys(search_keyword)
-    # 検索ボタンクリック
-    driver.find_element_by_class_name("topSearch__button").click()
-
-    # dataframe用のリスト作成
-    list_info = []
-
-    # 画面に次ページボタンがあればクリックして処理を継続
-    roop_flg = True
-    while(roop_flg == True):
-        try:
-            list_info = get_site_info(driver, list_info)
-            # 次ページへのリンクがある位置までスクロール
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            next_link = driver.find_elements_by_class_name("iconFont--arrowLeft")
-            if len(next_link) == 0:
-                # 最後のページまで読込が完了したらCSVに出力する。
-                roop_flg = False
-                df = pd.DataFrame(data=list_info,columns=["会社情報", "採用情報概要", "雇用形態", "仕事内容", "対象となる方", "勤務地", "給与"])
-                df.to_csv('sample.csv', encoding='utf_8_sig')
-            else:
-                next_link[0].click()
-                driver.implicitly_wait(10)
-        except IndexError:
-            logging.debug('ページのデータがありません')
-            continue
-    
-    print("処理が終了しました。")
-
 def get_site_info(driver, list_info):
     # 検索結果を取得
     name_list=driver.find_elements_by_class_name("cassetteRecruit__name")
@@ -95,6 +51,50 @@ def get_site_info(driver, list_info):
         list_info += [[name.text, copy.text, status.text, table_td_list[0].text, table_td_list[1].text, table_td_list[2].text, table_td_list[3].text]]
         logging.debug(f'現在 {len(list_info)}件目取得')
     return list_info
+
+### main処理
+def main():
+    search_keyword=input("求人情報検索ワードを入力してください >>> ")
+    # driverを起動
+    driver=set_driver("chromedriver.exe",False)
+    # Webサイトを開く
+    driver.get("https://tenshoku.mynavi.jp/")
+    time.sleep(5)
+    # ポップアップを閉じる
+    driver.execute_script('document.querySelector(".karte-close").click()')
+    time.sleep(5)
+    # ポップアップを閉じる
+    driver.execute_script('document.querySelector(".karte-close").click()')
+    
+    # 検索窓に入力
+    driver.find_element_by_class_name("topSearch__text").send_keys(search_keyword)
+    # 検索ボタンクリック
+    driver.find_element_by_class_name("topSearch__button").click()
+
+    # dataframe用のリスト作成
+    list_info = []
+
+    # 画面に次ページボタンがあればクリックして処理を継続
+    roop_flg = True
+    while(roop_flg):
+        try:
+            list_info = get_site_info(driver, list_info)
+            # 次ページへのリンクがある位置までスクロール
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            next_link = driver.find_elements_by_class_name("iconFont--arrowLeft")
+            if len(next_link) == 0:
+                # 最後のページまで読込が完了したらCSVに出力する。
+                roop_flg = False
+                df = pd.DataFrame(data=list_info,columns=["会社情報", "採用情報概要", "雇用形態", "仕事内容", "対象となる方", "勤務地", "給与"])
+                df.to_csv('sample.csv', encoding='utf_8_sig')
+            else:
+                next_link[0].click()
+                driver.wait(10)
+        except IndexError:
+            logging.debug('ページのデータがありません')
+            continue
+    
+    print("処理が終了しました。")
 
 ### 直接起動された場合はmain()を起動(モジュールとして呼び出された場合は起動しないようにするため)
 if __name__ == "__main__":
